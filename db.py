@@ -71,8 +71,8 @@ def get_vthrs(crate):
     return vthrs
 
 def print_vthr_orcascript(vthrs):
-    for slot in range(len(vthrs)):
-        if slot in vthrs and vthrs[slot] is not None:
+    for slot in vthrs:
+        if vthrs[slot] is not None:
             for i in range(len(vthrs[slot])):
                 s = {
                     'slot': slot,
@@ -81,8 +81,6 @@ def print_vthr_orcascript(vthrs):
                 }
 
                 print orca_template % s
-        else:
-            print 'Sorry, no vthrs for slot', slot
 
 if __name__ == '__main__':
     crate = int(sys.argv[1])

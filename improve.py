@@ -22,7 +22,6 @@ def parse_vthrs(f):
     for l in f.readlines():
         slot = int(l.split()[1].split(':')[1])
         dac = int(l.split()[3].split(':')[1].rstrip('];'))
-        print slot, dac
         try:
             v[slot].append(dac)
         except KeyError:
@@ -44,18 +43,27 @@ if __name__ == '__main__':
     vthrs = None
     if thresh_file is not None:
         with open(thresh_file) as f:
-            print f
             vthrs = parse_vthrs(f)
     else:
         vthrs = db.get_vthrs(crate)
 
+    bumped_up = 0
+    bumped_down = 0
     for slot in rates:
         for i in range(len(rates[slot])):
             for v in range(7):
-                if rates[slot][i] > 2.0 * 10**v:
+                if rates[slot][i] > 4.0 * 10**v:
                     if vthrs[slot][i] + 1 > 255:
                         continue
+                    bumped_up += 1
                     vthrs[slot][i] += 1
+            if rates[slot][i] <= 0:
+                if vthrs[slot][i] - 1 < 0:
+                    continue
+                bumped_down += 1
+                vthrs[slot][i] -= 1
 
     db.print_vthr_orcascript(vthrs)
 
+    print 'bumped up', bumped_up, 'thresholds'
+    print 'bumped down', bumped_down, 'thresholds'
