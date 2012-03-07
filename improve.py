@@ -1,52 +1,41 @@
 import sys
 import db
 
-def parse_rates(f):
+def parse_rate_file(f):
     rates = {}
-    channel = 0
     for l in f.readlines():
-        try:
+        if 'XL3 crate' in l:
+            crate = int(l.split()[2])
+        if 'slot' in l:
             slot = int(l.split()[1].rstrip(','))
-            try:            
+            try:
                 rates[slot].extend(map(float, l.split(':')[1].split()))
             except KeyError:
                 rates[slot] = map(float, l.split(':')[1].split())
-        except IndexError:
-            continue
 
-    return rates
+    return crate, rates
 
-def parse_vthrs(f):
+def parse_vthr_file(f):
     v = {}
-    channel = 0
     for l in f.readlines():
-        slot = int(l.split()[1].split(':')[1])
-        dac = int(l.split()[3].split(':')[1].rstrip('];'))
-        try:
-            v[slot].append(dac)
-        except KeyError:
-            v[slot] = [dac]
+        if 'ORXL3Model' in l:
+            crate = int(l.split()[2].split(',')[1])
+        if 'xl3 setVthrDACsForSlot' in l:
+            slot = int(l.split()[1].split(':')[1])
+            dac = int(l.split()[3].split(':')[1].rstrip('];'))
+            try:
+                v[slot].append(dac)
+            except KeyError:
+                v[slot] = [dac]
 
-    return v
+    return crate, v
 
-if __name__ == '__main__':
-    rate_file = sys.argv[1]
+def parse_vthr_array(crate, slot, s):
+    s = s.strip('[]')
+    v = {slot: map(float, s.split(','))}
+    return crate, v
 
-    thresh_file = None
-    if len(sys.argv) > 2:
-        thresh_file = sys.argv[2]
-
-    with open(rate_file) as f:
-        crate = int(f.readline().split()[2])
-        rates = parse_rates(f)
-
-    vthrs = None
-    if thresh_file is not None:
-        with open(thresh_file) as f:
-            vthrs = parse_vthrs(f)
-    else:
-        vthrs = db.get_vthrs(crate)
-
+def improve(vthrs, rates, verbose=False):
     bumped_up = 0
     bumped_down = 0
     for slot in rates:
@@ -62,8 +51,25 @@ if __name__ == '__main__':
                     continue
                 bumped_down += 1
                 vthrs[slot][i] -= 1
+    if verbose:
+        print 'bumped up', bumped_up, 'thresholds'
+        print 'bumped down', bumped_down, 'thresholds'
 
-    db.print_vthr_orcascript(vthrs)
+    return vthrs
 
-    print 'bumped up', bumped_up, 'thresholds'
-    print 'bumped down', bumped_down, 'thresholds'
+if __name__ == '__main__':
+    rate_file = sys.argv[1]
+
+    with open(rate_file) as f:
+        crate, rates = parse_rate_file(f)
+
+    if len(sys.argv) > 2:
+        with open(sys.argv[2]) as f:
+            crate, vthrs = parse_vthr_file(f)
+    else:
+        vthrs = db.get_vthrs(crate)
+
+    vthrs = improve(vthrs, rates)
+
+    db.print_vthr_orcascript(crate, vthrs)
+

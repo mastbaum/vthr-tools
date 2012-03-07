@@ -8,42 +8,27 @@ PASS = config.PASS
 DBNAME = config.DBNAME
 VIEW = config.VIEW
 
-orca_template = '[xl3 setVthrDACsForSlot:%(slot)i withChannelMask:%(mask)s dac:%(dac)i];'
+orca_template = \
+'''function main() {
 
-channel_masks = [
-    '0x1',
-    '0x2',
-    '0x4',
-    '0x8',
-    '0x10',
-    '0x20',
-    '0x40',
-    '0x80',
-    '0x100',
-    '0x200',
-    '0x400',
-    '0x800',
-    '0x1000',
-    '0x2000',
-    '0x4000',
-    '0x8000',
-    '0x10000',
-    '0x20000',
-    '0x40000',
-    '0x80000',
-    '0x100000',
-    '0x200000',
-    '0x400000',
-    '0x800000',
-    '0x1000000',
-    '0x2000000',
-    '0x4000000',
-    '0x8000000',
-    '0x10000000',
-    '0x20000000',
-    '0x40000000',
-    '0x80000000'
-]
+rc = find(ORRunModel);
+xl3 = find(ORXL3Model, %(crate)i, 0);
+
+if (!rc || !xl3) {
+  print("error finding run or xl3");
+  return 1;
+}
+
+// vthr for crate %(crate)i
+%(script)s
+
+return 0;
+}
+'''
+
+orca_line = '[xl3 setVthrDACsForSlot:%(slot)i withChannelMask:%(mask)s dac:%(dac)i];'
+
+channel_masks = [hex(1 << channel) for channel in range(32)]
 
 def get_vthrs(crate):
     '''get a dict (by slot) of lists (by channel) of thresholds'''
@@ -57,7 +42,7 @@ def get_vthrs(crate):
     db = couch[DBNAME]
 
     vthrs = {}
-    for row in db.view(VIEW, startkey=[crate], endkey=[crate,{}]):
+    for row in db.view(VIEW, startkey=[crate], endkey=[crate,{}], reversed=True):
         doc = row.value
         slot = doc['card']
         try:
@@ -70,7 +55,8 @@ def get_vthrs(crate):
 
     return vthrs
 
-def print_vthr_orcascript(vthrs):
+def print_vthr_orcascript(crate, vthrs):
+    lines = []
     for slot in vthrs:
         if vthrs[slot] is not None:
             for i in range(len(vthrs[slot])):
@@ -79,11 +65,12 @@ def print_vthr_orcascript(vthrs):
                     'mask': channel_masks[i],
                     'dac': vthrs[slot][i]
                 }
+                lines.append(orca_line % s)
 
-                print orca_template % s
+    print orca_template % {'crate': crate, 'script': '\n'.join(lines)}
 
 if __name__ == '__main__':
     crate = int(sys.argv[1])
     vthrs = get_vthrs(crate)
-    print_vthr_orcascript(vthrs)
+    print_vthr_orcascript(crate, vthrs)
 
